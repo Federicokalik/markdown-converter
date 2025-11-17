@@ -4,7 +4,7 @@ import FileUpload from './FileUpload';
 import AISettings from './AISettings';
 import { convertText } from '../utils/converter';
 import { improveTextWithAI } from '../utils/aiService';
-import { getApiKey, getSelectedProvider } from '../utils/crypto';
+import { getApiKey, getSelectedProvider, getSelectedModel } from '../utils/crypto';
 import './MarkdownConverter.css';
 
 const MarkdownConverter = () => {
@@ -66,10 +66,21 @@ const MarkdownConverter = () => {
   const handleImproveWithAI = async () => {
     const provider = getSelectedProvider();
     const apiKey = getApiKey(provider);
+    const model = getSelectedModel(provider);
 
     if (!apiKey) {
       const shouldOpenSettings = window.confirm(
         'Nessuna API key configurata. Vuoi configurare l\'AI ora?'
+      );
+      if (shouldOpenSettings) {
+        setShowAISettings(true);
+      }
+      return;
+    }
+
+    if (!model) {
+      const shouldOpenSettings = window.confirm(
+        'Nessun modello AI selezionato. Vuoi configurare l\'AI ora?'
       );
       if (shouldOpenSettings) {
         setShowAISettings(true);
@@ -98,6 +109,7 @@ const MarkdownConverter = () => {
         textToImprove,
         provider,
         apiKey,
+        model,
         outputFormat
       );
 

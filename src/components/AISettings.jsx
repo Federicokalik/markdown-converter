@@ -1,6 +1,13 @@
 import { useState, useEffect } from 'react';
-import { getAllProviders, validateApiKey } from '../utils/aiService';
-import { saveApiKey, getApiKey, saveSelectedProvider, getSelectedProvider } from '../utils/crypto';
+import { getAllProviders, validateApiKey, fetchAvailableModels } from '../utils/aiService';
+import {
+  saveApiKey,
+  getApiKey,
+  saveSelectedProvider,
+  getSelectedProvider,
+  saveSelectedModel,
+  getSelectedModel
+} from '../utils/crypto';
 import './AISettings.css';
 
 const AISettings = ({ onClose, onSave }) => {
@@ -8,15 +15,50 @@ const AISettings = ({ onClose, onSave }) => {
   const [apiKey, setApiKey] = useState('');
   const [showApiKey, setShowApiKey] = useState(false);
   const [isSaved, setIsSaved] = useState(false);
+  const [availableModels, setAvailableModels] = useState([]);
+  const [selectedModel, setSelectedModel] = useState('');
+  const [isLoadingModels, setIsLoadingModels] = useState(false);
+  const [modelsError, setModelsError] = useState('');
 
   const providers = getAllProviders();
 
-  // Carica l'API key salvata quando cambia il provider
+  // Carica l'API key e il modello salvati quando cambia il provider
   useEffect(() => {
     const savedKey = getApiKey(selectedProvider);
+    const savedModel = getSelectedModel(selectedProvider);
     setApiKey(savedKey || '');
+    setSelectedModel(savedModel || '');
     setIsSaved(!!savedKey);
+    setAvailableModels([]);
+    setModelsError('');
+
+    // Se c'è una API key salvata, carica i modelli
+    if (savedKey) {
+      loadModels(savedKey);
+    }
   }, [selectedProvider]);
+
+  // Funzione per caricare i modelli
+  const loadModels = async (key) => {
+    setIsLoadingModels(true);
+    setModelsError('');
+
+    try {
+      const models = await fetchAvailableModels(selectedProvider, key);
+      setAvailableModels(models);
+
+      // Se non c'è un modello selezionato, seleziona il primo
+      if (!selectedModel && models.length > 0) {
+        setSelectedModel(models[0].id);
+      }
+    } catch (error) {
+      console.error('Errore nel caricamento modelli:', error);
+      setModelsError(`Impossibile caricare i modelli: ${error.message}`);
+      setAvailableModels([]);
+    } finally {
+      setIsLoadingModels(false);
+    }
+  };
 
   const handleProviderChange = (e) => {
     setSelectedProvider(e.target.value);
@@ -25,6 +67,20 @@ const AISettings = ({ onClose, onSave }) => {
   const handleApiKeyChange = (e) => {
     setApiKey(e.target.value);
     setIsSaved(false);
+  };
+
+  const handleLoadModels = async () => {
+    if (!apiKey.trim()) {
+      alert('Inserisci prima una API key');
+      return;
+    }
+
+    if (!validateApiKey(selectedProvider, apiKey)) {
+      alert('Il formato dell\'API key non sembra corretto per questo provider');
+      return;
+    }
+
+    await loadModels(apiKey);
   };
 
   const handleSave = () => {
@@ -38,14 +94,20 @@ const AISettings = ({ onClose, onSave }) => {
       return;
     }
 
+    if (!selectedModel) {
+      alert('Seleziona un modello prima di salvare');
+      return;
+    }
+
     // Salva in localStorage (criptato)
     saveApiKey(selectedProvider, apiKey);
     saveSelectedProvider(selectedProvider);
+    saveSelectedModel(selectedProvider, selectedModel);
     setIsSaved(true);
 
     // Notifica il parent component
     if (onSave) {
-      onSave(selectedProvider, apiKey);
+      onSave(selectedProvider, apiKey, selectedModel);
     }
 
     alert('Configurazione salvata con successo!');
@@ -53,7 +115,10 @@ const AISettings = ({ onClose, onSave }) => {
 
   const handleClear = () => {
     setApiKey('');
+    setSelectedModel('');
+    setAvailableModels([]);
     saveApiKey(selectedProvider, '');
+    saveSelectedModel(selectedProvider, '');
     setIsSaved(false);
   };
 
@@ -166,6 +231,48 @@ const AISettings = ({ onClose, onSave }) => {
               <p className="success-message">✓ API key salvata (criptata in locale)</p>
             )}
           </div>
+
+          {/* Carica Modelli */}
+          <div className="settings-group">
+            <button
+              onClick={handleLoadModels}
+              className="load-models-btn"
+              disabled={!apiKey || isLoadingModels}
+            >
+              {isLoadingModels ? '⏳ Caricamento modelli...' : '🔍 Carica Modelli Disponibili'}
+            </button>
+          </div>
+
+          {/* Selezione Modello */}
+          {availableModels.length > 0 && (
+            <div className="settings-group">
+              <label>Seleziona Modello AI:</label>
+              <select
+                value={selectedModel}
+                onChange={(e) => setSelectedModel(e.target.value)}
+                className="model-select"
+              >
+                <option value="">-- Seleziona un modello --</option>
+                {availableModels.map((model) => (
+                  <option key={model.id} value={model.id}>
+                    {model.name} {model.pricing ? `(${model.pricing})` : ''}
+                  </option>
+                ))}
+              </select>
+              {selectedModel && (
+                <p className="model-info">
+                  {availableModels.find(m => m.id === selectedModel)?.description}
+                </p>
+              )}
+            </div>
+          )}
+
+          {/* Errore modelli */}
+          {modelsError && (
+            <div className="error-message">
+              ⚠️ {modelsError}
+            </div>
+          )}
 
           {/* Informazioni sulla sicurezza */}
           <div className="security-info">

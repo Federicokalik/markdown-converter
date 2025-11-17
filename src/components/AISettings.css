@@ -247,6 +247,66 @@
   box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
 }
 
+.load-models-btn {
+  width: 100%;
+  padding: 0.75rem 1.5rem;
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-size: 1rem;
+}
+
+.load-models-btn:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.4);
+}
+
+.load-models-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.model-select {
+  width: 100%;
+  padding: 0.75rem;
+  border: 2px solid #e0e0e0;
+  border-radius: 6px;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: border-color 0.2s;
+}
+
+.model-select:focus {
+  outline: none;
+  border-color: #667eea;
+  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+}
+
+.model-info {
+  margin-top: 0.5rem;
+  padding: 0.75rem;
+  background: #f0f4ff;
+  border-left: 3px solid #667eea;
+  border-radius: 4px;
+  font-size: 0.9rem;
+  color: #555;
+  line-height: 1.5;
+}
+
+.error-message {
+  background: #fee;
+  border-left: 3px solid #f44;
+  padding: 0.75rem;
+  border-radius: 4px;
+  color: #c33;
+  font-size: 0.9rem;
+  margin-bottom: 1rem;
+}
+
 @media (max-width: 768px) {
   .ai-settings-modal {
     max-width: 100%;
