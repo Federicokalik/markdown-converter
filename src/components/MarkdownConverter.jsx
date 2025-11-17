@@ -1,7 +1,10 @@
 import { useState } from 'react';
 import RichTextEditor from './RichTextEditor';
 import FileUpload from './FileUpload';
+import AISettings from './AISettings';
 import { convertText } from '../utils/converter';
+import { improveTextWithAI } from '../utils/aiService';
+import { getApiKey, getSelectedProvider } from '../utils/crypto';
 import './MarkdownConverter.css';
 
 const MarkdownConverter = () => {
@@ -12,6 +15,8 @@ const MarkdownConverter = () => {
   const [referenceContent, setReferenceContent] = useState('');
   const [showReference, setShowReference] = useState(false);
   const [useRichEditor, setUseRichEditor] = useState(true);
+  const [showAISettings, setShowAISettings] = useState(false);
+  const [isAIProcessing, setIsAIProcessing] = useState(false);
 
   // Gestisce il caricamento del file di riferimento
   const handleFileLoad = (content, filename) => {
@@ -57,6 +62,56 @@ const MarkdownConverter = () => {
     URL.revokeObjectURL(url);
   };
 
+  // Migliora il testo con AI
+  const handleImproveWithAI = async () => {
+    const provider = getSelectedProvider();
+    const apiKey = getApiKey(provider);
+
+    if (!apiKey) {
+      const shouldOpenSettings = window.confirm(
+        'Nessuna API key configurata. Vuoi configurare l\'AI ora?'
+      );
+      if (shouldOpenSettings) {
+        setShowAISettings(true);
+      }
+      return;
+    }
+
+    if (!inputText) {
+      alert('Inserisci del testo prima di usare l\'AI');
+      return;
+    }
+
+    setIsAIProcessing(true);
+
+    try {
+      // Estrai il testo plain se è HTML (dall'editor)
+      let textToImprove = inputText;
+      if (useRichEditor && inputType === 'html') {
+        // Crea un elemento temporaneo per estrarre il testo
+        const temp = document.createElement('div');
+        temp.innerHTML = inputText;
+        textToImprove = temp.textContent || temp.innerText || inputText;
+      }
+
+      const improvedText = await improveTextWithAI(
+        textToImprove,
+        provider,
+        apiKey,
+        outputFormat
+      );
+
+      setOutputText(improvedText);
+      alert('✓ Testo migliorato con successo!');
+
+    } catch (error) {
+      console.error('Errore AI:', error);
+      alert(`Errore nell'elaborazione AI: ${error.message}`);
+    } finally {
+      setIsAIProcessing(false);
+    }
+  };
+
   return (
     <div className="markdown-converter">
       {/* Controlli superiori */}
@@ -88,6 +143,12 @@ const MarkdownConverter = () => {
             />
             Usa editor visuale
           </label>
+        </div>
+
+        <div className="control-group ai-controls">
+          <button onClick={() => setShowAISettings(true)} className="ai-settings-btn">
+            ⚙️ Configura AI
+          </button>
         </div>
       </div>
 
@@ -134,8 +195,15 @@ const MarkdownConverter = () => {
         </div>
       </div>
 
-      {/* Bottone di conversione */}
+      {/* Bottoni di conversione */}
       <div className="convert-button-container">
+        <button
+          onClick={handleImproveWithAI}
+          className="ai-improve-button"
+          disabled={!inputText || isAIProcessing}
+        >
+          {isAIProcessing ? '🤖 Elaborazione AI...' : '✨ Migliora con AI'}
+        </button>
         <button onClick={handleConvert} className="convert-button" disabled={!inputText}>
           Converti
         </button>
@@ -156,6 +224,14 @@ const MarkdownConverter = () => {
             title="Modifica il tuo file di riferimento"
           />
         </div>
+      )}
+
+      {/* Modal Impostazioni AI */}
+      {showAISettings && (
+        <AISettings
+          onClose={() => setShowAISettings(false)}
+          onSave={() => {}}
+        />
       )}
     </div>
   );
