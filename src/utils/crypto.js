@@ -97,3 +97,24 @@ export const getSelectedProvider = () => {
 export const removeApiKey = (provider) => {
   localStorage.removeItem(`ai_key_${provider}`);
 };
+
+/**
+ * Salva il modello selezionato per un provider
+ */
+export const saveSelectedModel = (provider, model) => {
+  localStorage.setItem(`ai_model_${provider}`, model);
+};
+
+/**
+ * Recupera il modello selezionato per un provider
+ */
+export const getSelectedModel = (provider) => {
+  return localStorage.getItem(`ai_model_${provider}`) || '';
+};
+
+/**
+ * Rimuove il modello selezionato di un provider
+ */
+export const removeSelectedModel = (provider) => {
+  localStorage.removeItem(`ai_model_${provider}`);
+};

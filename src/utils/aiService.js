@@ -7,25 +7,25 @@ const AI_PROVIDERS = {
   openai: {
     name: 'OpenAI',
     endpoint: 'https://api.openai.com/v1/chat/completions',
-    model: 'gpt-4o-mini',
+    modelsEndpoint: 'https://api.openai.com/v1/models',
     guideUrl: 'https://platform.openai.com/api-keys',
   },
   deepseek: {
     name: 'DeepSeek',
     endpoint: 'https://api.deepseek.com/v1/chat/completions',
-    model: 'deepseek-chat',
+    modelsEndpoint: 'https://api.deepseek.com/v1/models',
     guideUrl: 'https://platform.deepseek.com/api_keys',
   },
   openrouter: {
     name: 'OpenRouter',
     endpoint: 'https://openrouter.ai/api/v1/chat/completions',
-    model: 'openai/gpt-4o-mini',
+    modelsEndpoint: 'https://openrouter.ai/api/v1/models',
     guideUrl: 'https://openrouter.ai/keys',
   },
   gemini: {
     name: 'Google Gemini',
-    endpoint: 'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent',
-    model: 'gemini-1.5-flash',
+    endpoint: 'https://generativelanguage.googleapis.com/v1beta/models',
+    modelsEndpoint: 'https://generativelanguage.googleapis.com/v1beta/models',
     guideUrl: 'https://makersuite.google.com/app/apikey',
   }
 };
@@ -56,7 +56,7 @@ ${text}`;
 /**
  * Formatta la richiesta per OpenAI
  */
-const formatOpenAIRequest = (provider, apiKey, prompt) => {
+const formatOpenAIRequest = (provider, apiKey, prompt, model) => {
   const config = AI_PROVIDERS[provider];
 
   return {
@@ -70,7 +70,7 @@ const formatOpenAIRequest = (provider, apiKey, prompt) => {
       })
     },
     body: {
-      model: config.model,
+      model: model,
       messages: [
         {
           role: 'system',
@@ -90,11 +90,9 @@ const formatOpenAIRequest = (provider, apiKey, prompt) => {
 /**
  * Formatta la richiesta per Gemini (usa formato diverso)
  */
-const formatGeminiRequest = (apiKey, prompt) => {
-  const config = AI_PROVIDERS.gemini;
-
+const formatGeminiRequest = (apiKey, prompt, model) => {
   return {
-    url: `${config.endpoint}?key=${apiKey}`,
+    url: `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
     headers: {
       'Content-Type': 'application/json',
     },
@@ -131,9 +129,13 @@ const extractResponseText = (provider, data) => {
 /**
  * Funzione principale per migliorare il testo con AI
  */
-export const improveTextWithAI = async (text, provider, apiKey, outputFormat = 'markdown') => {
+export const improveTextWithAI = async (text, provider, apiKey, model, outputFormat = 'markdown') => {
   if (!text || !apiKey) {
     throw new Error('Testo e API key sono richiesti');
+  }
+
+  if (!model) {
+    throw new Error('Modello AI non selezionato');
   }
 
   if (!AI_PROVIDERS[provider]) {
@@ -147,9 +149,9 @@ export const improveTextWithAI = async (text, provider, apiKey, outputFormat = '
 
     // Formatta la richiesta in base al provider
     if (provider === 'gemini') {
-      requestConfig = formatGeminiRequest(apiKey, prompt);
+      requestConfig = formatGeminiRequest(apiKey, prompt, model);
     } else {
-      requestConfig = formatOpenAIRequest(provider, apiKey, prompt);
+      requestConfig = formatOpenAIRequest(provider, apiKey, prompt, model);
     }
 
     // Esegui la chiamata API
@@ -221,5 +223,99 @@ export const validateApiKey = (provider, apiKey) => {
       return apiKey.length > 20;
     default:
       return true;
+  }
+};
+
+/**
+ * Recupera la lista dei modelli disponibili per un provider
+ */
+export const fetchAvailableModels = async (provider, apiKey) => {
+  if (!apiKey) {
+    throw new Error('API key richiesta');
+  }
+
+  const config = AI_PROVIDERS[provider];
+  if (!config) {
+    throw new Error(`Provider ${provider} non supportato`);
+  }
+
+  try {
+    let response;
+    let models = [];
+
+    switch (provider) {
+      case 'openai':
+      case 'deepseek':
+        // OpenAI e DeepSeek usano lo stesso formato
+        response = await fetch(config.modelsEndpoint, {
+          headers: {
+            'Authorization': `Bearer ${apiKey}`,
+          }
+        });
+
+        if (!response.ok) {
+          throw new Error(`Errore nel recupero modelli (${response.status})`);
+        }
+
+        const openaiData = await response.json();
+        models = openaiData.data
+          .filter(m => m.id.includes('gpt') || m.id.includes('deepseek') || m.id.includes('chat'))
+          .map(m => ({
+            id: m.id,
+            name: m.id,
+            description: m.owned_by || ''
+          }))
+          .sort((a, b) => a.name.localeCompare(b.name));
+        break;
+
+      case 'openrouter':
+        response = await fetch(config.modelsEndpoint, {
+          headers: {
+            'Authorization': `Bearer ${apiKey}`,
+          }
+        });
+
+        if (!response.ok) {
+          throw new Error(`Errore nel recupero modelli (${response.status})`);
+        }
+
+        const openrouterData = await response.json();
+        models = openrouterData.data
+          .map(m => ({
+            id: m.id,
+            name: m.name || m.id,
+            description: m.description || '',
+            pricing: m.pricing ? `$${m.pricing.prompt}/1M tokens` : ''
+          }))
+          .sort((a, b) => a.name.localeCompare(b.name));
+        break;
+
+      case 'gemini':
+        response = await fetch(`${config.modelsEndpoint}?key=${apiKey}`);
+
+        if (!response.ok) {
+          throw new Error(`Errore nel recupero modelli (${response.status})`);
+        }
+
+        const geminiData = await response.json();
+        models = geminiData.models
+          .filter(m => m.supportedGenerationMethods?.includes('generateContent'))
+          .map(m => ({
+            id: m.name.replace('models/', ''),
+            name: m.displayName || m.name.replace('models/', ''),
+            description: m.description || ''
+          }))
+          .sort((a, b) => a.name.localeCompare(b.name));
+        break;
+
+      default:
+        throw new Error(`Provider ${provider} non supportato`);
+    }
+
+    return models;
+
+  } catch (error) {
+    console.error('Errore nel recupero modelli:', error);
+    throw error;
   }
 };
